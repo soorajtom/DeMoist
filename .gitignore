@@ -1,0 +1,18 @@
+# Byte-compiled / optimized Python files
+__pycache__/
+*.pyc
+
+# Virtual environments (if you're using venv, virtualenv, or pipenv)
+venv/
+env/
+.pyc
+.pyo
+__pycache__/
+
+# Editor-specific files
+.vscode/
+*.swp
+*~
+.idea/
+
+values.log
