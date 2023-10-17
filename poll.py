@@ -38,7 +38,7 @@ while True:
 
             # Get the current timestamp
             timestamp = datetime.now()
-            data["timestamp"] = timestamp
+            data["timestamp"] = str(timestamp)
 
             # Append the timestamp and data values to the lists
             # timestamps.append(timestamp)
