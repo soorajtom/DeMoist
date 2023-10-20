@@ -19,9 +19,10 @@
 #include <ESP8266mDNS.h>
 
 #ifndef STASSID
-#define STASSID "ACT102659353172"
-#define STAPSK  "89993286"
+#define STASSID "Totoro"
+#define STAPSK  "chicken1"
 #endif
+
 DHT20 DHT(&Wire);
 
 const char* ssid = STASSID;
@@ -29,12 +30,23 @@ const char* password = STAPSK;
 
 const int led = LED_BUILTIN;
 
+const int low_cutoff = 65;
+const int high_cutoff = 75;
+
+bool cooler_state = false;
+
+const int cooler_pin = GPIO14; // D5
+
+float humidity, temperature;
+
 // Create an instance of the server
 // specify the port to listen on as an argument
 ESP8266WebServer server(80);
 
 void setup()
 {
+  pinMode(cooler_pin, OUTPUT);
+  digitalWrite(cooler_pin, HIGH);
   DHT.begin();  //  ESP32 default pins 21 22
   Serial.begin(115200);
 // Connect to WiFi network
@@ -69,6 +81,9 @@ void loop()
 {
   server.handleClient();
   MDNS.update();
+
+  update_cooler_FSM();
+  delay(50);
 }
 
 void handleRoot() {
@@ -79,12 +94,22 @@ void handleRoot() {
 
 void handleRead() {
   digitalWrite(led, 0);
-  DHT.read();
-  char buff[50];
-  sprintf(buff, "{\"temp\":%f,\"humidity\":%f}", DHT.getTemperature(), DHT.getHumidity());
-//  String s = "{\"temp\":" + DHT.getTemperature() + ",\"humidity\":" + DHT.getHumidity()+ "}";
+  char buff[100];
+  sprintf(buff, "{\"temp\":%f,\"humidity\":%f,\"cooler_state\":%d}", temperature, humidity, cooler_state);
   server.send(200, "application/json", buff);
   digitalWrite(led, 255);
+}
+
+void update_cooler_FSM() {
+  DHT.read();
+  humidity = DHT.getHumidity();
+  temperature = DHT.getTemperature();
+  if (humidity < low_cutoff) {
+    cooler_state = false;
+  } else if (humidity > high_cutoff) {
+    cooler_state = true;
+  };
+  digitalWrite(cooler_pin, cooler_state ? LOW : HIGH);
 }
 
 
