@@ -17,30 +17,28 @@ app = Flask(__name__)
 @app.route('/')
 def index():
     # Fetch data from the database
-    data_list = get_data_from_db()
-    temps = []
-    humidity = []
-    cooler_states = []
-    timestamps = []
-    for data in data_list:
-        temps.append(data['temperature'])
-        humidity.append(data['humidity'])
-        cooler_states.append(int(data['cooler_state'])*5)
-        timestamps.append(data['timestamp'])
+    data = get_data_from_db()
 
-    # Create a Plotly graph
-    fig = make_subplots(rows=1, cols=1)
+    if not data:
+        return "No data available."
 
-    fig.add_trace(go.Scatter(x=timestamps, y=temps, mode='lines+markers', name='Temperature'))
-    fig.add_trace(go.Scatter(x=timestamps, y=humidity, mode='lines+markers', name='Humidity'))
-    fig.add_trace(go.Scatter(x=timestamps, y=cooler_states, mode='lines', name='Cooler Status'))
+    # Create separate Plotly graphs for temperature and humidity
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True)
+
+    if 'temperature' in data and len(data['temperature']) > 0:
+        fig.add_trace(go.Scatter(x=data['timestamp'], y=data['temperature'], mode='lines', name='Temperature'), row=2, col=1)
+        fig.update_yaxes(title_text='Temperature (°C)', row=2, col=1)
+
+    if 'humidity' in data and len(data['humidity']) > 0:
+        fig.add_trace(go.Scatter(x=data['timestamp'], y=data['humidity'], mode='lines', name='Humidity'), row=1, col=1)
+        fig.update_yaxes(title_text='Humidity (%)', row=1, col=1)
 
     # Customize the layout
-    fig.update_layout(title='Temperature, Humidity, and Cooler State',
+    fig.update_layout(title='Temperature and Humidity',
                       xaxis_title='Timestamp',
-                      yaxis_title='Value')
+                      height=750)
 
-    # Plotly graph to HTML
+    # Plotly graphs to HTML
     graph_json = fig.to_json()
 
     return render_template('index.html', graph_json=graph_json)
@@ -57,11 +55,35 @@ def get_data_from_db():
 
         if connection.is_connected():
             cursor = connection.cursor(dictionary=True)
-            cursor.execute("SELECT timestamp, temperature, humidity, cooler_state FROM cabin ORDER BY timestamp DESC LIMIT 5000")
-            data = cursor.fetchall()
+            query = "SELECT COUNT(*) FROM cabin"
+
+            # Execute the query
+            cursor.execute(query)
+
+            # Fetch the result
+
+            count = cursor.fetchone()["COUNT(*)"]
+
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT *\
+            FROM (\
+            SELECT *, ROW_NUMBER() OVER (ORDER BY timestamp DESC) AS row_num\
+            FROM cabin\
+            ) AS subquery\
+            WHERE row_num %% %d = 0;" %(count/500))
+            data_list = cursor.fetchall()
             cursor.close()
             connection.close()
-            return data
+            temps = []
+            humidity = []
+            cooler_states = []
+            timestamps = []
+            for data in data_list:
+                temps.append(data['temperature'])
+                humidity.append(data['humidity'])
+                cooler_states.append(int(data['cooler_state'])*5)
+                timestamps.append(data['timestamp'])
+            return {"temperature": temps, "humidity": humidity, "cooler_states": cooler_states, "timestamp": timestamps}
 
     except Error as e:
         print(f"Error: {e}")
