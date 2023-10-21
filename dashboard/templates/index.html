@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Temperature, Humidity, and Cooler Status</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+    <h1>Temperature, Humidity, and Cooler Status</h1>
+    <div id="data-graph"></div>
+    <script>
+        var graph_data = {{ graph_json|safe }};
+        Plotly.newPlot('data-graph', graph_data.data, graph_data.layout);
+    </script>
+</body>
+</html>
