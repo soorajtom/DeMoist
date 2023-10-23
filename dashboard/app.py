@@ -1,4 +1,5 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, request, redirect
+import requests
 import mysql.connector
 from mysql.connector import Error
 import plotly.graph_objs as go
@@ -11,6 +12,8 @@ DATABASE_HOST = config('DATABASE_HOST')
 DATABASE_NAME = config('DATABASE_NAME')
 DATABASE_USER = config('DATABASE_USER')
 DATABASE_PASSWORD = config('DATABASE_PASSWORD')
+
+cooler_url = "http://192.168.1.112"
 
 app = Flask(__name__)
 
@@ -45,7 +48,25 @@ def index():
     # Plotly graphs to HTML
     graph_json = fig.to_json()
 
-    return render_template('index.html', graph_json=graph_json)
+    params = get_params()
+
+    return render_template('index.html',
+                            graph_json=graph_json,
+                            cooler_state=params["cooler_state"],
+                            cooler_fsm=params["cooler_fsm"],
+                            low=params["low"],
+                            high=params["high"],
+                            )
+
+def get_params():
+    # params = requests.get("%s/params" % cooler_url)
+    params = {
+        "cooler_state": 0,
+        "cooler_fsm": 1,
+        "low": 20,
+        "high": 30,
+    }
+    return params
 
 def get_data_from_db():
     # Connect to the MySQL database
@@ -122,3 +143,22 @@ FROM cabin
 ) AS subquery
 WHERE row_num % 1 = 0;
 """
+@app.route('/control', methods=['POST'])
+def control_cooler():
+    if request.form.get('start_cooler'):
+        requests.get("%s/params?cooler=true" % cooler_url)
+    elif request.form.get('stop_cooler'):
+        requests.get("%s/params?cooler=false" % cooler_url)
+    
+    if request.form.get('start_cooler_fsm'):
+        requests.get("%s/params?cooler_fsm=true" % cooler_url)
+    elif request.form.get('stop_cooler_fsm'):
+        requests.get("%s/params?cooler_fsm=false" % cooler_url)
+    return redirect('/')  # Redirect back to the main page
+
+@app.route('/set_thresholds', methods=['POST'])
+def set_thresholds():
+    low_humidity = request.form.get('low_humidity')
+    high_humidity = request.form.get('high_humidity')
+    # Logic to set humidity thresholds here
+    return redirect('/')  # Redirect back to the main page

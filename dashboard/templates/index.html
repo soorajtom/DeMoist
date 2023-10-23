@@ -7,6 +7,37 @@
 </head>
 <body>
    <h1>Temperature and Humidity</h1>
+
+   <!-- Form for cooler control -->
+   <form method="post" action="/control">
+      <label for="start_cooler">Start Cooler</label>
+      <input type="radio" name="cooler_control" id="start_cooler" value="start" {% if cooler_state == 1 %}checked{% endif %}>
+
+      <label for="stop_cooler">Stop Cooler</label>
+      <input type="radio" name="cooler_control" id="stop_cooler" value="stop" {% if cooler_state == 0 %}checked{% endif %}>
+
+      <label for="start_cooler_fsm">Start Cooler FSM</label>
+      <input type="radio" name="cooler_fsm_control" id="start_cooler_fsm" value="start_fsm" {% if cooler_fsm == 1 %}checked{% endif %}>
+
+      <label for="stop_cooler_fsm">Stop Cooler FSM</label>
+      <input type="radio" name="cooler_fsm_control" id="stop_cooler_fsm" value="stop_fsm" {% if cooler_fsm == 0 %}checked{% endif %}>
+
+      <button type="submit" name="control">Control Cooler</button>
+   </form>
+
+
+   <!-- Form for setting humidity thresholds -->
+<form method="post" action="/set_thresholds">
+   <label for="low">Low Humidity:</label>
+   <input type="number" name="low" id="low" step="1" value="{{ low }}">
+
+   <label for="high">High Humidity:</label>
+   <input type="number" name="high" id="high" step="1" value="{{ high }}">
+
+   <button type="submit">Set Thresholds</button>
+</form>
+
+
    <div id="temperature-graph"></div>
    <script>
        var graph_data = {{ graph_json|safe }};

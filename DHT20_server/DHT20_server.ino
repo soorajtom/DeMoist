@@ -30,12 +30,13 @@ const char* password = STAPSK;
 
 const int led = LED_BUILTIN;
 
-const int low_cutoff = 65;
-const int high_cutoff = 75;
+int low_cutoff = 65;
+int high_cutoff = 75;
 
 bool cooler_state = false;
+bool cooler_fsm = true;
 
-const int cooler_pin = GPIO14; // D5
+const int cooler_pin = 14; // D5
 
 float humidity, temperature;
 
@@ -73,6 +74,7 @@ void setup()
 //  Serial.println("Humidity, Temperature");
   server.on("/", handleRoot);
   server.on("/read", handleRead);
+  server.on("/params", handle_params);
   server.begin();
 }
 
@@ -104,6 +106,9 @@ void update_cooler_FSM() {
   DHT.read();
   humidity = DHT.getHumidity();
   temperature = DHT.getTemperature();
+  if (!cooler_fsm) {
+    return;
+  }
   if (humidity < low_cutoff) {
     cooler_state = false;
   } else if (humidity > high_cutoff) {
@@ -112,5 +117,37 @@ void update_cooler_FSM() {
   digitalWrite(cooler_pin, cooler_state ? LOW : HIGH);
 }
 
+void handle_params() {
+  if (server.arg("low") != ""){
+    low_cutoff = server.arg("low").toInt();
+  }
+  if (server.arg("high") != ""){
+    high_cutoff = server.arg("high").toInt();
+  }
+  if (server.arg("cooler") != ""){
+    String state = server.arg("cooler");
+    if (state == "true") {
+      cooler_state = true;
+    } else if (state == "false") {
+      cooler_state = false;
+    }
+  }
+  if (server.arg("cooler_fsm") != ""){
+    String state = server.arg("cooler_fsm");
+    if (state == "true") {
+      cooler_fsm = true;
+    } else if (state == "false") {
+      cooler_fsm = false;
+    }
+  }
+  String params = get_params_string();
+  server.send(200, "application/json", params);
+}
+
+String get_params_string() {
+  char buff[100];
+  sprintf(buff, "{\"low\":%d,\"high\":%d,\"cooler_state\":%d,\"cooler_fsm\":%d}", low_cutoff, high_cutoff, cooler_state, cooler_fsm);
+  return String(buff);
+}
 
 // -- END OF FILE --
