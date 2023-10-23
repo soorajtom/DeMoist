@@ -18,16 +18,20 @@ app = Flask(__name__)
 def index():
     # Fetch data from the database
     data = get_data_from_db()
+    slope = calculate_smoothed_slope(data["humidity"])
 
     if not data:
         return "No data available."
 
     # Create separate Plotly graphs for temperature and humidity
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True)
+    fig = make_subplots(rows=3, cols=1, shared_xaxes=True)
 
     if 'temperature' in data and len(data['temperature']) > 0:
-        fig.add_trace(go.Scatter(x=data['timestamp'], y=data['temperature'], mode='lines', name='Temperature'), row=2, col=1)
-        fig.update_yaxes(title_text='Temperature (°C)', row=2, col=1)
+        fig.add_trace(go.Scatter(x=data['timestamp'], y=data['temperature'], mode='lines', name='Temperature'), row=3, col=1)
+        fig.update_yaxes(title_text='Temperature (°C)', row=3, col=1)
+    
+    fig.add_trace(go.Scatter(x=data['timestamp'], y=slope, mode='lines', name='Humidity Change'), row=2, col=1)
+    fig.update_yaxes(title_text='dH/dt', row=2, col=1)
 
     if 'humidity' in data and len(data['humidity']) > 0:
         fig.add_trace(go.Scatter(x=data['timestamp'], y=data['humidity'], mode='lines', name='Humidity'), row=1, col=1)
@@ -63,6 +67,8 @@ def get_data_from_db():
             # Fetch the result
 
             count = cursor.fetchone()["COUNT(*)"]
+            # skip_plus_one = count/500
+            skip_plus_one = 1
 
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT *\
@@ -70,7 +76,7 @@ def get_data_from_db():
             SELECT *, ROW_NUMBER() OVER (ORDER BY timestamp DESC) AS row_num\
             FROM cabin\
             ) AS subquery\
-            WHERE row_num %% %d = 0;" %(count/500))
+            WHERE row_num %% %d = 0;" %(skip_plus_one))
             data_list = cursor.fetchall()
             cursor.close()
             connection.close()
@@ -78,6 +84,7 @@ def get_data_from_db():
             humidity = []
             cooler_states = []
             timestamps = []
+            data_list.reverse()
             for data in data_list:
                 temps.append(data['temperature'])
                 humidity.append(data['humidity'])
@@ -88,5 +95,30 @@ def get_data_from_db():
     except Error as e:
         print(f"Error: {e}")
 
+def calculate_smoothed_slope(data):
+    # Calculate the smoothed slope using central difference and a rolling average
+    window_size = 120  # Adjust the window size as needed
+    smoothed_data = [sum(data[i:i+window_size]) / window_size for i in range(len(data) - window_size + 1)]
+    slope = []
+    slope_value = 0
+    for i in range(len(smoothed_data)):
+        if i == 0:
+            slope.append(0)
+        elif i == len(smoothed_data) - 1:
+            slope.append(slope_value)
+        else:
+            slope_value = ((smoothed_data[i + 1] - smoothed_data[i - 1]) / 2) * 12
+            slope.append(slope_value)
+    return slope
+
 if __name__ == '__main__':
     app.run(debug=True)
+
+"""
+SELECT *
+FROM (
+SELECT *, ROW_NUMBER() OVER (ORDER BY timestamp DESC) AS row_num
+FROM cabin
+) AS subquery
+WHERE row_num % 1 = 0;
+"""
