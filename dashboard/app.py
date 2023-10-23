@@ -78,14 +78,17 @@ def index():
 
 @timing_decorator
 def get_params():
-    # params = requests.get("%s/params" % cooler_url)
-    params = {
+    try:
+        resp = requests.get("%s/params" % cooler_url, timeout=10)
+        return resp.json()
+    except Exception as e:
+        loginfo("Error %s" % str(e))
+    return {
         "cooler_state": 0,
-        "cooler_fsm": 1,
-        "low": 20,
-        "high": 30,
+        "cooler_fsm": 0,
+        "low": 0,
+        "high": 0,
     }
-    return params
 
 @timing_decorator
 def get_data_from_db():
@@ -108,8 +111,8 @@ def get_data_from_db():
             # Fetch the result
 
             count = cursor.fetchone()["COUNT(*)"]
-            # skip_plus_one = count/500
-            skip_plus_one = 1
+            skip_plus_one = count/1000
+            # skip_plus_one = 1
 
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT *\
@@ -139,7 +142,7 @@ def get_data_from_db():
 @timing_decorator
 def calculate_smoothed_slope(data):
     # Calculate the smoothed slope using central difference and a rolling average
-    window_size = 120  # Adjust the window size as needed
+    window_size = 5  # Adjust the window size as needed
     smoothed_data = [sum(data[i:i+window_size]) / window_size for i in range(len(data) - window_size + 1)]
     slope = []
     slope_value = 0
@@ -183,6 +186,21 @@ def set_thresholds():
     low = request.form.get('low')
     high = request.form.get('high')
     loginfo("Set thresholds to %s and %s" % (low, high))
+    
+    connection = mysql.connector.connect(
+            host=DATABASE_HOST,
+            database=DATABASE_NAME,
+            user=DATABASE_USER,
+            password=DATABASE_PASSWORD
+        )
+    cursor = connection.cursor()
+    update_query = "UPDATE cabin_config SET low = %s, high = %s WHERE id = 1"
+    values = (low, high)
+    cursor.execute(update_query, values)
+    connection.commit()
+    cursor.close()
+    connection.close()
+
     requests.get("%s/params?low=%s&high=%s" % (cooler_url, low, high))
     return redirect('/')  # Redirect back to the main page
 
