@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, redirect
 import requests
+import time
 import mysql.connector
 from mysql.connector import Error
 import plotly.graph_objs as go
@@ -16,6 +17,23 @@ DATABASE_PASSWORD = config('DATABASE_PASSWORD')
 cooler_url = "http://192.168.1.112"
 
 app = Flask(__name__)
+
+def loginfo(log_str):
+    print(log_str)
+
+def timing_decorator(func):
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        execution_time = end_time - start_time
+        loginfo(f"{func.__name__} took {execution_time:.4f} seconds to execute.")
+        return result
+    return wrapper
+
+@timing_decorator
+def get_graph_json(fig):
+    return fig.to_json()
 
 @app.route('/')
 def index():
@@ -46,7 +64,7 @@ def index():
                       height=750)
 
     # Plotly graphs to HTML
-    graph_json = fig.to_json()
+    graph_json = get_graph_json(fig)
 
     params = get_params()
 
@@ -58,6 +76,7 @@ def index():
                             high=params["high"],
                             )
 
+@timing_decorator
 def get_params():
     # params = requests.get("%s/params" % cooler_url)
     params = {
@@ -68,6 +87,7 @@ def get_params():
     }
     return params
 
+@timing_decorator
 def get_data_from_db():
     # Connect to the MySQL database
     try:
@@ -114,8 +134,9 @@ def get_data_from_db():
             return {"temperature": temps, "humidity": humidity, "cooler_states": cooler_states, "timestamp": timestamps}
 
     except Error as e:
-        print(f"Error: {e}")
+        loginfo(f"Error: {e}")
 
+@timing_decorator
 def calculate_smoothed_slope(data):
     # Calculate the smoothed slope using central difference and a rolling average
     window_size = 120  # Adjust the window size as needed
@@ -132,9 +153,6 @@ def calculate_smoothed_slope(data):
             slope.append(slope_value)
     return slope
 
-if __name__ == '__main__':
-    app.run(debug=True)
-
 """
 SELECT *
 FROM (
@@ -143,22 +161,31 @@ FROM cabin
 ) AS subquery
 WHERE row_num % 1 = 0;
 """
+
 @app.route('/control', methods=['POST'])
 def control_cooler():
-    if request.form.get('start_cooler'):
+    if request.form.get('cooler_control') == "start":
+        loginfo("starting cooler")
         requests.get("%s/params?cooler=true" % cooler_url)
-    elif request.form.get('stop_cooler'):
+    elif request.form.get('cooler_control') == "stop":
         requests.get("%s/params?cooler=false" % cooler_url)
-    
-    if request.form.get('start_cooler_fsm'):
+        loginfo("stopping cooler")
+    if request.form.get('cooler_fsm_control') == "start_fsm":
+        loginfo("starting cooler fsm")
         requests.get("%s/params?cooler_fsm=true" % cooler_url)
-    elif request.form.get('stop_cooler_fsm'):
+    elif request.form.get('cooler_fsm_control') == "stop_fsm":
+        loginfo("stopping cooler fsm")
         requests.get("%s/params?cooler_fsm=false" % cooler_url)
     return redirect('/')  # Redirect back to the main page
 
 @app.route('/set_thresholds', methods=['POST'])
 def set_thresholds():
-    low_humidity = request.form.get('low_humidity')
-    high_humidity = request.form.get('high_humidity')
-    # Logic to set humidity thresholds here
+    low = request.form.get('low')
+    high = request.form.get('high')
+    loginfo("Set thresholds to %s and %s" % (low, high))
+    requests.get("%s/params?low=%s&high=%s" % (cooler_url, low, high))
     return redirect('/')  # Redirect back to the main page
+
+
+if __name__ == '__main__':
+    app.run(debug=True)

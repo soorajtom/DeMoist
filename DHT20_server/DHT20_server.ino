@@ -44,6 +44,13 @@ float humidity, temperature;
 // specify the port to listen on as an argument
 ESP8266WebServer server(80);
 
+// Set your Static IP address
+IPAddress local_IP(192, 168, 1, 112);
+// Set your Gateway IP address
+IPAddress gateway(192, 168, 1, 1);
+
+IPAddress subnet(255, 255, 0, 0);
+
 void setup()
 {
   pinMode(cooler_pin, OUTPUT);
@@ -55,6 +62,11 @@ void setup()
   Serial.println();
   Serial.print("Connecting to ");
   Serial.println(ssid);
+
+  // Configures static IP address
+  if (!WiFi.config(local_IP, gateway, subnet)) {
+    Serial.println("STA Failed to configure");
+  }
 
   WiFi.begin(ssid, password);
 
@@ -114,7 +126,7 @@ void update_cooler_FSM() {
   } else if (humidity > high_cutoff) {
     cooler_state = true;
   };
-  digitalWrite(cooler_pin, cooler_state ? LOW : HIGH);
+  digitalWrite(cooler_pin, cooler_state ? HIGH : LOW);
 }
 
 void handle_params() {
